@@ -2,9 +2,9 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-class EmotionalSpeechPredictor(nn.Module):
+class ARCNNEmbedding(nn.Module):
     def __init__(self, hparams):
-        super(EmotionalSpeechPredictor, self).__init__()
+        super(ARCNNEmbedding, self).__init__()
 
         self.num_classes = len(hparams.data.classes)
         self.in_channel = hparams.model.in_channel
@@ -50,8 +50,8 @@ class EmotionalSpeechPredictor(nn.Module):
         self.softmax = nn.Softmax(dim=1)
 
         # Define Fully-Connected layer
-        self.fc1 = nn.Linear(2*self.cell_units, self.hidden_dim_fc)
-        self.fc2 = nn.Linear(self.hidden_dim_fc, self.num_classes)
+        # self.fc1 = nn.Linear(2*self.cell_units, self.hidden_dim_fc)
+        # self.fc2 = nn.Linear(self.hidden_dim_fc, self.num_classes)
 
     def forward(self, x):
         # x -> (B, C, T, F)
@@ -88,13 +88,15 @@ class EmotionalSpeechPredictor(nn.Module):
 
         # Attention
         v = self.sigmoid(self.a_fc1(out_lstm))      # (B, T, 1)
-        alphas = self.softmax(self.a_fc2(v).squeeze())      # (B, T)
+        alphas = self.softmax(self.a_fc2(v).squeeze(-1))      # (B, T)
         res_att = (alphas.unsqueeze(2) * out_lstm).sum(axis=1)      # (B, 128*2)
 
-        # Fully-Connected
-        fc_1 = self.relu(self.fc1(res_att))
-        fc_1 = self.dropout(fc_1)
-        logits = self.fc2(fc_1)
-        logits = self.softmax(logits)
+        return res_att
 
-        return logits
+        # # Fully-Connected
+        # fc_1 = self.relu(self.fc1(res_att))
+        # fc_1 = self.dropout(fc_1)
+        # logits = self.fc2(fc_1)
+        # logits = self.softmax(logits)
+
+        # return logits

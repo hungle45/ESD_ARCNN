@@ -6,6 +6,10 @@ data:
   num_filter_bank: 40
   classes: [Angry, Happy, Neutral, Sad, Surprise]
   max_length: 300
+  num_workers: 4
+
+loss:
+  margin: 100.0
 
 model:
   in_channel: 3
@@ -20,9 +24,11 @@ model:
   max_pooling_size: !!python/tuple [2, 4]
 
 train:
-  train_batch_size: 256
-  eval_batch_size: 32
-  num_epochs: 5000
+  train_batch_size: 8
+  eval_batch_size: 8
+  train_speaker_id: 11
+  eval_speaker_id: 12
+  num_epochs: 5
   learning_rate: 0.0001
   momentum: 0.9
   use_gpu: !!bool True
@@ -30,4 +36,4 @@ train:
 checkpoint:
   save_folder: './checkpoint/'
   continue_once: './checkpoint/model.pt'
-  valid_interval: 300
+  valid_interval: 1
