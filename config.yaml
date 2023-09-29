@@ -26,8 +26,6 @@ model:
 train:
   train_batch_size: 8
   eval_batch_size: 8
-  train_speaker_id: 11
-  eval_speaker_id: 12
   num_epochs: 5
   learning_rate: 0.0001
   momentum: 0.9

@@ -109,6 +109,30 @@ def load_hparam(filename):
     docs = yaml.load(stream, Loader=yaml.FullLoader)
     return docs
 
+def load_metadata(data_path, speaker_id):
+    emo_ch_en = {
+        '生气': 'Angry',
+        '快乐': 'Happy',
+        '中立': 'Neutral',
+        '伤心': 'Sad',
+        '惊喜': 'Surprise'
+    }
+    speaker_id = f'{speaker_id:04d}'
+    speaker_path = os.path.join(data_path, speaker_id)
+    metadata_file = os.path.join(speaker_path, speaker_id +'.txt')
+    metadata = {
+        'audio': [],
+        'emotion': []
+    }
+    with open(metadata_file, 'r', encoding='utf8') as f:
+        for line in f:
+            record = line.strip().split('\t')
+            if record[2] in emo_ch_en:
+                record[2] = emo_ch_en[record[2]]
+            metadata['audio'].append(f'{speaker_path}/{record[2]}/{record[0]}.wav')
+            metadata['emotion'].append(record[2])
+    return metadata
+
 
 class Dotdict(dict):
     

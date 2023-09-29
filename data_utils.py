@@ -1,45 +1,31 @@
 import time
 import os
 import random
+
 import numpy as np
 import torch
 import torch.utils.data
-
 import torch.nn.functional as F
+from datasets import Dataset, Audio
 
 from .utils import (
     load_wav_to_torch,
     load_filepaths,
     wav_to_3d_mel,
+    load_metadata
 )
 
 class ESDataset(torch.utils.data.Dataset):
-    def __init__(self, hparams, speaker_id):
-        
+    def __init__(self, hparams, speaker_id, test_size=None, seed=45):
+        self.path = hparams.common.meta_file_folder
         self.sampling_rate = hparams.data.sampling_rate
         self.num_filter_bank = hparams.data.num_filter_bank
-        self.list_classes = hparams.data.classes
-        self.num_classes = len(self.list_classes)
         self.max_length = hparams.data.max_length
-        
-        self.samples = []
-        for emo in self.list_classes:
-            
-            emo_dir = os.path.join(
-                hparams.common.meta_file_folder, f'{speaker_id:04d}', emo)
-            if not os.path.isdir(emo_dir):
-                raise FileNotFoundError(f'Cannot find the given directory: {emo_dir}')
-            
-            files = os.listdir(emo_dir)
-            for f in files:
-                fpath = os.path.join(emo_dir, f)
-                if not os.path.isfile(fpath):
-                    continue
-                self.samples.append((fpath, self.list_classes.index(emo)))
-        
-        random.seed(1234)
-        random.shuffle(self.samples)
 
+        self.speaker_id = speaker_id
+        self.test_size = test_size
+        self.seed = seed
+        
     def get_audio(self, filename):
         waveform, sampling_rate = load_wav_to_torch(filename)
         if sampling_rate != self.sampling_rate:
@@ -52,53 +38,73 @@ class ESDataset(torch.utils.data.Dataset):
                     num_filter=self.num_filter_bank,
                     max_length=self.max_length
                 )
+        return {
+            'audio': {
+                'path': filename,
+                'array': data
+            }
+        }
+        
+    def get_data(self):
+        metadata = load_metadata(self.path, self.speaker_id)
+        data = Dataset.from_dict(metadata) \
+            .map(lambda sample: self.get_audio(sample['audio']))
+        data = data.class_encode_column('emotion')
+        
+        if self.test_size is not None:
+            data = data.train_test_split(test_size=self.test_size, seed=self.seed)
         return data
-        
-    def get_audio_label_pair(self, audiopath_label):
-        audiopath, label = audiopath_label[0], audiopath_label[1]
-        data = self.get_audio(audiopath)
-        # label_one_hot = F.one_hot(torch.tensor(label), self.num_classes)
-        return (data, label)
-
-    def __getitem__(self, index):
-        anchor = self.get_audio_label_pair(self.samples[index])
-        sample_idx = np.random.randint(0, len(self.samples))
-        sample = self.get_audio_label_pair(self.samples[sample_idx])
-        return anchor[0], anchor[1], sample[0], sample[1] 
-
-    def __len__(self):
-        return len(self.samples)
     
 
-class Collate:
+class DataCollator():
+    def __init__(self, num_labels):
+        self.num_labels = num_labels
     
-    def __init__(self, num_classes):
-        self.num_classes = num_classes
-        
-    def __call__(self, batch):
-        
-        l_anchor_max, l_sample_max = 0, 0
-        anchors, anchors_emo, samples, samples_emo = [], [], [], []
-        
-        for anchor, anchor_emo, sample, sample_emo in batch:
+    def __call__(self, data):
+        audio_arrays = []
+        ground_truth = []
+        emotion_dict = {}
+        for idx, sample in enumerate(data):
+            audio_arrays.append(torch.Tensor(sample['audio']['array']))
+            ground_truth.append(sample['emotion'])
+            current_emotion = str(sample['emotion'])
+            if current_emotion not in emotion_dict:
+                emotion_dict[current_emotion] = [idx]
+            else:
+                emotion_dict[current_emotion].append(idx)
+                
+        anchor_audios = []
+        negative_audios = []
+        targets = []
+        negative_emo = []
+        for idx, target_emotion in enumerate(ground_truth):
+            target = random.randint(0, 1)
+            siamese_index = idx
+            negative_sample_emo = target_emotion
+            if target == 1:
+                siamese_index = random.choice(emotion_dict[str(target_emotion)])
+            else:
+                # Get all type of emotion existed
+                exist_emo = list(emotion_dict.keys())
+                # Remove target emotion if it existed in list
+                if str(target_emotion) in exist_emo:
+                    exist_emo.remove(str(target_emotion)) # List of negative emotion
+                
+                # Case: Only exist target emotion
+                if len(exist_emo) == 0:
+                    target = 1
+                    siamese_index = random.choice(emotion_dict[str(target_emotion)])
+                else:
+                    negative_sample_emo = random.choice(exist_emo)
+                    siamese_index = random.choice(emotion_dict[negative_sample_emo])
+            anchor_audios.append(audio_arrays[idx])
+            negative_audios.append(audio_arrays[siamese_index])
+            targets.append(target)
+            negative_emo.append(int(negative_sample_emo))
             
-            anchors.append(anchor.permute(2, 0, 1).to(dtype=torch.float32))
-            anchors_emo.append(anchor_emo)
-            samples.append(sample.permute(2, 0, 1).to(dtype=torch.float32))
-            samples_emo.append(sample_emo)
-
-            l_anchor_max = max(l_anchor_max, len(anchor))
-            l_sample_max = max(l_sample_max, len(sample))
-        
-        y = []
-        
-        for idx in range(len(anchors)):
-            y.append(min(abs(anchors_emo[idx] - samples_emo[idx]), 1))
-
-        anchors = torch.stack(anchors)
-        samples = torch.stack(samples)
-        y = torch.tensor(y)
-        
-        return anchors, samples, y, \
-            F.one_hot(torch.tensor(anchors_emo), self.num_classes), \
-            F.one_hot(torch.tensor(samples_emo), self.num_classes)
+        return (torch.stack(anchor_audios),
+                torch.stack(negative_audios),
+                torch.tensor(targets),
+                F.one_hot(torch.tensor(ground_truth), self.num_labels),
+                F.one_hot(torch.tensor(negative_emo), self.num_labels)
+            ) 
