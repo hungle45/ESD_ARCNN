@@ -9,7 +9,7 @@ data:
   num_workers: 4
 
 loss:
-  margin: 100.0
+  margin: 1.0
 
 model:
   in_channel: 3

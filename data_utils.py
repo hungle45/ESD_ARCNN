@@ -72,8 +72,8 @@ class ESDataset(torch.utils.data.Dataset):
 
 class Collate:
     
-    def __init__(self):
-        pass
+    def __init__(self, num_classes):
+        self.num_classes = num_classes
         
     def __call__(self, batch):
         
@@ -99,4 +99,6 @@ class Collate:
         samples = torch.stack(samples)
         y = torch.tensor(y)
         
-        return anchors, samples, y
+        return anchors, samples, y, \
+            F.one_hot(torch.tensor(anchors_emo), self.num_classes), \
+            F.one_hot(torch.tensor(samples_emo), self.num_classes)

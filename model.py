@@ -37,7 +37,7 @@ class ARCNNEmbedding(nn.Module):
         self.bn = nn.BatchNorm1d(self.hidden_dim_cnn)
 
         self.relu = nn.LeakyReLU(0.01)
-        self.dropout = nn.Dropout2d(self.dropout_prob)
+        self.dropout = nn.Dropout(self.dropout_prob)
         
         # Define LSTM layer
         self.lstm = nn.LSTM(input_size=self.hidden_dim_cnn, hidden_size=self.cell_units,
@@ -50,8 +50,8 @@ class ARCNNEmbedding(nn.Module):
         self.softmax = nn.Softmax(dim=1)
 
         # Define Fully-Connected layer
-        # self.fc1 = nn.Linear(2*self.cell_units, self.hidden_dim_fc)
-        # self.fc2 = nn.Linear(self.hidden_dim_fc, self.num_classes)
+        self.fc1 = nn.Linear(2*self.cell_units, self.hidden_dim_fc)
+        self.fc2 = nn.Linear(self.hidden_dim_fc, self.num_classes)
 
     def forward(self, x):
         # x -> (B, C, T, F)
@@ -91,12 +91,10 @@ class ARCNNEmbedding(nn.Module):
         alphas = self.softmax(self.a_fc2(v).squeeze(-1))      # (B, T)
         res_att = (alphas.unsqueeze(2) * out_lstm).sum(axis=1)      # (B, 128*2)
 
-        return res_att
+        # Fully-Connected
+        fc_1 = self.relu(self.fc1(res_att))
+        fc_1 = self.dropout(fc_1)
+        logits = self.fc2(fc_1)
+        logits = self.softmax(logits)
 
-        # # Fully-Connected
-        # fc_1 = self.relu(self.fc1(res_att))
-        # fc_1 = self.dropout(fc_1)
-        # logits = self.fc2(fc_1)
-        # logits = self.softmax(logits)
-
-        # return logits
+        return res_att, logits
