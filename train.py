@@ -24,6 +24,7 @@ def train(hparams, train_dataset, eval_dataset):
     global_step = 0
     global_eval_loss = float('inf')
     global_eval_accuracy = 0.0
+    loss_coeff = hparams.train.loss_coeff
 
     if not hparams.train.use_gpu:
         device = torch.device("cpu")
@@ -67,7 +68,7 @@ def train(hparams, train_dataset, eval_dataset):
                 outputs2 = model(x2)
                 loss1 = contrastive_loss(outputs1[0], outputs2[0], y) # embed
                 loss2 = classify_loss(outputs1[1], l1) + classify_loss(outputs2[1], l2)
-                loss = loss1 + loss2
+                loss = loss_coeff * loss1 + (1 - loss_coeff) * loss2
                 losses.append(loss.item())
 
                 loss.backward()
@@ -75,7 +76,7 @@ def train(hparams, train_dataset, eval_dataset):
                 
                 if global_step % hparams.checkpoint.valid_interval == 0:
                     valid_loss, valid_accuracy = evaluate(model, eval_loader, 
-                        contrastive_loss, classify_loss, device=device)
+                        contrastive_loss, classify_loss, loss_coeff, device=device)
                     if valid_accuracy >= global_eval_accuracy:
                         global_eval_loss = valid_loss
                         global_eval_accuracy = valid_accuracy
@@ -85,7 +86,7 @@ def train(hparams, train_dataset, eval_dataset):
                                 os.mkdir(hparams.checkpoint.save_folder)
 
                             checkpoint_path = os.path.join(hparams.checkpoint.save_folder, 
-                                                            "model_{}_{}.pt".format(epoch, round(global_eval_accuracy, 2)))
+                                                            "model_{}_{}.pt".format(epoch, round(global_eval_accuracy, 4)))
                             save_checkpoint(model, optimizer, epoch, checkpoint_path)
 
                 global_step += 1
@@ -93,7 +94,7 @@ def train(hparams, train_dataset, eval_dataset):
                                    best_valid_loss=global_eval_loss, best_valid_acc=global_eval_accuracy)                     
 
 
-def evaluate(model, eval_loader, contrastive_loss, classify_loss, device='cpu'):
+def evaluate(model, eval_loader, contrastive_loss, classify_loss, loss_coeff=0.5, device='cpu'):
     model.eval()
     with torch.no_grad():
         losses = []
@@ -113,7 +114,7 @@ def evaluate(model, eval_loader, contrastive_loss, classify_loss, device='cpu'):
             # loss
             loss1 = contrastive_loss(outputs1[0], outputs2[0], y) # embed
             loss2 = classify_loss(outputs1[1], l1) + classify_loss(outputs2[1], l2)
-            loss = loss1 + loss2
+            loss = loss_coeff * loss1 + (1 - loss_coeff) * loss2
             losses.append(loss.item())
 
             # accuracy
