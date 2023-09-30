@@ -119,14 +119,10 @@ def evaluate(model, eval_loader, contrastive_loss, classify_loss, loss_coeff=0.5
 
             # accuracy
             anchor_idxs_pred = torch.argmax(outputs1[1], dim=1)
-            another_idxs_pred = torch.argmax(outputs2[1], dim=1)
-            y_predict = y_predict + list(anchor_idxs_pred.cpu().detach().numpy()) \
-                + list(another_idxs_pred.cpu().detach().numpy())
+            y_predict = y_predict + list(anchor_idxs_pred.cpu().detach().numpy())
                 
             anchor_idxs_gt = torch.argmax(l1, dim=1)
-            another_idxs_gt = torch.argmax(l2, dim=1)
-            y_ground_truth = y_ground_truth + list(anchor_idxs_gt.cpu().detach().numpy()) \
-                + list(another_idxs_gt.cpu().detach().numpy())
+            y_ground_truth = y_ground_truth + list(anchor_idxs_gt.cpu().detach().numpy())
             
         loss = mean(losses)
         correct = (np.array(y_ground_truth) == np.array(y_predict))
