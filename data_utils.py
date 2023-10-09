@@ -25,7 +25,7 @@ class ESDataset(torch.utils.data.Dataset):
         self.speaker_id = speaker_id
         self.test_size = test_size
         self.seed = seed
-        self.metadata
+        self.metadata = metadata
         
     def get_audio(self, filename):
         waveform, sampling_rate = load_wav_to_torch(filename)
