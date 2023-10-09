@@ -16,7 +16,7 @@ from .utils import (
 )
 
 class ESDataset(torch.utils.data.Dataset):
-    def __init__(self, hparams, speaker_id, test_size=None, seed=45):
+    def __init__(self, hparams, speaker_id, test_size=None, seed=45, metadata=None):
         self.path = hparams.common.meta_file_folder
         self.sampling_rate = hparams.data.sampling_rate
         self.num_filter_bank = hparams.data.num_filter_bank
@@ -25,6 +25,7 @@ class ESDataset(torch.utils.data.Dataset):
         self.speaker_id = speaker_id
         self.test_size = test_size
         self.seed = seed
+        self.metadata
         
     def get_audio(self, filename):
         waveform, sampling_rate = load_wav_to_torch(filename)
@@ -46,8 +47,10 @@ class ESDataset(torch.utils.data.Dataset):
         }
         
     def get_data(self):
-        metadata = load_metadata(self.path, self.speaker_id)
-        data = Dataset.from_dict(metadata) \
+        if self.metadata is None:
+            self.metadata = load_metadata(self.path, self.speaker_id)
+            
+        data = Dataset.from_dict(self.metadata) \
             .map(lambda sample: self.get_audio(sample['audio']))
         data = data.class_encode_column('emotion')
         
