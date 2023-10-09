@@ -48,7 +48,7 @@ def train(hparams, train_dataset, eval_dataset):
         model, optimizer, start_epoch = load_checkpoint(hparams.checkpoint.continue_once, model, optimizer)
 
     classify_loss = torch.nn.CrossEntropyLoss()
-    contrastive_loss = ContrastiveLoss(hparams.loss.margin)
+    contrastive_loss = ContrastiveLoss(hparams.loss.margin, hparams.loss.mode)
     
     model.train()
     for epoch in range(start_epoch, hparams.train.num_epochs):

@@ -10,6 +10,7 @@ data:
 
 loss:
   margin: 1.0
+  mode: 'cosine'
 
 model:
   in_channel: 3
